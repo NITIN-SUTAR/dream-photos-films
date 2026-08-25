@@ -10,11 +10,6 @@ const __dirname = path.dirname(__filename);
 
 // https://vite.dev/config/
 export default defineConfig({
-<<<<<<< HEAD
-  base: "/dream-photos-films/",
-=======
-  base: '/dream-photos-films/',
->>>>>>> dbe5e3a83a283e9d625fe7c4c31970ac6ec29f35
   plugins: [react(), tailwindcss(), viteSingleFile()],
   resolve: {
     alias: {
