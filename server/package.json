@@ -1,0 +1,16 @@
+{
+  "name": "photographer-portfolio-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Photographer Portfolio Booking & Email Notifications",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}
