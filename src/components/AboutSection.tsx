@@ -16,22 +16,22 @@ export const AboutSection: React.FC = () => {
   );
 
   const publications = [
-  'WEDDING PHOTOGRAPHY',
-  'PORTRAIT PHOTOGRAPHY',
-  'FAMILY PORTRAITS',
-  'TRADITIONAL CEREMONIES',
-  'PRE-WEDDING STORIES',
-  'CULTURAL PHOTOGRAPHY'
-];
+    'WEDDING PHOTOGRAPHY',
+    'PORTRAIT PHOTOGRAPHY',
+    'FAMILY PORTRAITS',
+    'TRADITIONAL CEREMONIES',
+    'PRE-WEDDING STORIES',
+    'CULTURAL PHOTOGRAPHY'
+  ];
 
 
   return (
     <section id="about" className="relative py-24 bg-[#07080d]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
+
         {/* Section 1: Bio & Photographer Portrait */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center mb-24">
-          
+
           {/* Photographer Portrait */}
           <div className="lg:col-span-5 relative">
             <motion.div
@@ -138,7 +138,7 @@ export const AboutSection: React.FC = () => {
           </div>
 
           {/* Category Filter Pills */}
-          <div className="flex items-center justify-center gap-2 overflow-x-auto pb-2">
+          <div className="flex items-center justify-start gap-2 mb-10 overflow-x-auto pb-2 px-1 w-full">
             {[
               { id: 'all', label: 'All Equipment' },
               { id: 'camera', label: 'Camera Bodies' },
@@ -152,11 +152,10 @@ export const AboutSection: React.FC = () => {
                   playClickSound();
                   setActiveGearCat(cat.id as typeof activeGearCat);
                 }}
-                className={`px-4 py-2 rounded-xl text-xs font-mono transition-all cursor-pointer whitespace-nowrap ${
-                  activeGearCat === cat.id
+                className={`shrink-0 px-4 py-2 rounded-xl text-xs font-mono transition-all cursor-pointer whitespace-nowrap ${activeGearCat === cat.id
                     ? 'bg-purple-600 text-white font-semibold shadow-lg shadow-purple-500/30 border border-purple-400'
                     : 'glass-panel text-slate-400 hover:text-white'
-                }`}
+                  }`}
               >
                 {cat.label}
               </button>
