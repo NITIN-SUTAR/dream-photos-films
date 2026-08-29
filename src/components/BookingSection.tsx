@@ -17,7 +17,9 @@ import {
   Loader2,
   MailCheck,
   AlertCircle,
-  Mail
+  Mail,
+  XCircle,
+  RefreshCw
 } from 'lucide-react';
 
 import {
@@ -57,32 +59,52 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
   const [district, setDistrict] = useState('');
 
   /*
-   * Shoot location remains manual.
-   * User can type a venue, village, area, resort, studio etc.
+   * Shoot location is manual.
+   * REQUIRED
    */
-
   const [city, setCity] = useState('');
 
-  const [shootDate, setShootDate] = useState('2026-09-01');
+  /*
+   * Target shoot date
+   * REQUIRED
+   */
+  const [shootDate, setShootDate] = useState('');
 
   const [budget, setBudget] = useState(
     initialPrice
-      ? `$${initialPrice}`
-      : '$4,000 - $8,000'
+      ? `₹${initialPrice}`
+      : '₹40,000 - ₹60,000'
   );
 
   const [vision, setVision] = useState('');
 
-  // Contact details
+  /*
+   * Contact details
+   *
+   * REQUIRED:
+   * - Full Name
+   * - Email
+   * - Phone / WhatsApp
+   *
+   * company remains optional.
+   */
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
   const [phone, setPhone] = useState('');
 
-  // Confirmation & Network state
+  /*
+   * =========================================================
+   * CONFIRMATION / SUBMISSION STATE
+   * =========================================================
+   */
+
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmissionFailed, setIsSubmissionFailed] = useState(false);
+
   const [bookingRef, setBookingRef] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [emailNotice, setEmailNotice] = useState('');
 
@@ -95,22 +117,62 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    /*
+     * Browser required attributes handle most cases.
+     * These checks ensure empty/whitespace values
+     * cannot be submitted programmatically either.
+     */
+
+    if (!fullName.trim()) {
+      setSubmitError('Please enter your full name.');
+      setStep(3);
+      return;
+    }
+
+    if (!email.trim()) {
+      setSubmitError('Please enter your email address.');
+      setStep(3);
+      return;
+    }
+
+    if (!city.trim()) {
+      setSubmitError('Please enter your shoot location.');
+      setStep(1);
+      return;
+    }
+
+    if (!shootDate) {
+      setSubmitError('Please select your target shoot date.');
+      setStep(1);
+      return;
+    }
+
+    if (!phone.trim()) {
+      setSubmitError('Please enter your phone / WhatsApp number.');
+      setStep(3);
+      return;
+    }
+
     playCameraShutterSound();
+
     setIsSubmitting(true);
     setSubmitError(null);
+    setEmailNotice('');
+    setIsSubmissionFailed(false);
+    setIsSubmitted(false);
 
     const payload = {
       service,
       state,
       district,
-      city,
+      city: city.trim(),
       shootDate,
       budget,
       vision,
-      fullName,
-      email,
-      company,
-      phone
+      fullName: fullName.trim(),
+      email: email.trim(),
+      company: company.trim(),
+      phone: phone.trim()
     };
 
     try {
@@ -122,10 +184,26 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
         body: JSON.stringify(payload)
       });
 
-      const data = await response.json();
+      let data: any = {};
 
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
+
+      /*
+       * IMPORTANT:
+       * Success UI is shown ONLY when backend responds OK.
+       *
+       * If email transfer / booking processing fails,
+       * we DO NOT show the congratulation UI.
+       */
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to submit shoot booking');
+        throw new Error(
+          data.error ||
+          'Your booking could not be submitted. Please try again.'
+        );
       }
 
       const refCode =
@@ -133,11 +211,17 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
         'UP-' + Math.floor(100000 + Math.random() * 900000);
 
       setBookingRef(refCode);
+
       setEmailNotice(
         data.message ||
         'Notification emails dispatched to photographer & client inbox.'
       );
+
+      /*
+       * Only successful backend response reaches here.
+       */
       setIsSubmitted(true);
+      setIsSubmissionFailed(false);
 
       try {
         confetti({
@@ -149,25 +233,24 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
         console.log('Confetti error:', error);
       }
     } catch (error: any) {
-      console.warn('Booking backend notification warning:', error);
+      console.warn(
+        'Booking backend notification warning:',
+        error
+      );
 
-      // Local fallback ref if backend happens to be unreachable
-      const fallbackRef =
-        'UP-' + Math.floor(100000 + Math.random() * 900000);
+      /*
+       * DO NOT generate fallback success reference.
+       * DO NOT show congratulations UI.
+       *
+       * Instead show dedicated failure UI.
+       */
+      setIsSubmitted(false);
+      setIsSubmissionFailed(true);
 
-      setBookingRef(fallbackRef);
-      setSubmitError(error.message || 'Server connection notice');
-      setIsSubmitted(true);
-
-      try {
-        confetti({
-          particleCount: 80,
-          spread: 60,
-          origin: { y: 0.6 }
-        });
-      } catch (e) {
-        console.log('Confetti error:', e);
-      }
+      setSubmitError(
+        error?.message ||
+        'We could not transfer your booking request. Please try again.'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -231,6 +314,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
     doc.setTextColor(...cyan);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(21);
+
     doc.text(
       "DREAM PHOTO'S & FILM'S",
       margin,
@@ -240,6 +324,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
     doc.setTextColor(...muted);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
+
     doc.text(
       'PHOTOGRAPHY & VISUAL PRODUCTIONS',
       margin,
@@ -248,6 +333,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
 
     doc.setTextColor(...text);
     doc.setFontSize(8);
+
     doc.text(
       'Photography by Utkarsh Patel',
       margin,
@@ -259,6 +345,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
      */
 
     const badgeWidth = 45;
+
     const badgeX =
       pageWidth - margin - badgeWidth;
 
@@ -780,8 +867,10 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
   const resetForm = () => {
     setStep(1);
     setIsSubmitted(false);
+    setIsSubmissionFailed(false);
     setSubmitError(null);
     setEmailNotice('');
+    setBookingRef('');
   };
 
   /*
@@ -800,13 +889,12 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
           {[1, 2, 3].map((s) => (
             <div
               key={s}
-              className={`w-7 h-7 rounded-full flex items-center justify-center font-mono text-xs font-bold ${
-                step === s
+              className={`w-7 h-7 rounded-full flex items-center justify-center font-mono text-xs font-bold ${step === s
                   ? 'bg-cyan-400 text-slate-950 shadow-[0_0_10px_#38bdf8]'
                   : step > s
-                  ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/50'
-                  : 'bg-white/5 text-slate-500 border border-white/10'
-              }`}
+                    ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/50'
+                    : 'bg-white/5 text-slate-500 border border-white/10'
+                }`}
             >
               {s}
             </div>
@@ -818,9 +906,19 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
         </span>
       </div>
 
-      {/* Form Steps */}
+      {/* =====================================================
+          SUCCESS / FAILURE STATES
+         ===================================================== */}
 
       {isSubmitted ? (
+        /*
+         * =====================================================
+         * SUCCESS / CONGRATULATION UI
+         *
+         * This is shown ONLY after successful backend response.
+         * =====================================================
+         */
+
         <motion.div
           initial={{
             opacity: 0,
@@ -832,11 +930,13 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
           }}
           className="text-center py-8 space-y-6 glass-panel p-6 sm:p-8 rounded-3xl border border-cyan-500/40"
         >
+
           <div className="w-16 h-16 rounded-full bg-cyan-500/20 border border-cyan-400 flex items-center justify-center mx-auto text-cyan-400 shadow-[0_0_20px_#38bdf8]">
             <CheckCircle2 className="w-8 h-8" />
           </div>
 
           <div className="space-y-2">
+
             <span className="font-mono text-xs text-cyan-400 uppercase tracking-widest block">
               Booking Request Confirmed
             </span>
@@ -863,27 +963,40 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
               </span>{' '}
               has been recorded in our production system.
             </p>
+
           </div>
 
-          {/* Email Notification Status Badges */}
+          {/* Email Notification Status */}
+
           <div className="max-w-md mx-auto bg-[#0a0e1a]/80 border border-white/10 rounded-2xl p-4 text-left space-y-2.5">
+
             <div className="flex items-center gap-2.5 text-xs text-emerald-400 font-mono">
+
               <MailCheck className="w-4 h-4 shrink-0 text-emerald-400" />
-              <span>{emailNotice || 'Photographer Utkarsh Patel has received email notification.'}</span>
+
+              <span>
+                {emailNotice ||
+                  'Photographer Utkarsh Patel has received email notification.'}
+              </span>
+
             </div>
+
             {email && (
               <div className="flex items-center gap-2.5 text-xs text-cyan-300 font-mono">
+
                 <Mail className="w-4 h-4 shrink-0 text-cyan-400" />
-                <span>Confirmation receipt sent to: <strong>{email}</strong></span>
+
+                <span>
+                  Confirmation receipt sent to:{' '}
+                  <strong>{email}</strong>
+                </span>
+
               </div>
             )}
-            {submitError && (
-              <div className="flex items-center gap-2 text-[11px] text-amber-400/90 font-mono pt-1 border-t border-white/5">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                <span>{submitError}</span>
-              </div>
-            )}
+
           </div>
+
+          {/* Success Actions */}
 
           <div className="pt-4 flex flex-wrap items-center justify-center gap-3">
 
@@ -893,6 +1006,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
               className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 via-sky-500 to-indigo-600 hover:from-cyan-400 hover:via-sky-400 hover:to-indigo-500 border border-cyan-300/30 text-white text-xs font-bold tracking-wide flex items-center gap-2 cursor-pointer transition-all shadow-lg shadow-cyan-500/20"
             >
               <Download className="w-4 h-4" />
+
               <span>
                 Download Booking PDF
               </span>
@@ -907,8 +1021,111 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
             </button>
 
           </div>
+
         </motion.div>
+
+      ) : isSubmissionFailed ? (
+
+        /*
+         * =====================================================
+         * FAILED UI
+         *
+         * Same visual language as congratulation UI,
+         * but clearly indicates that booking was NOT submitted.
+         * =====================================================
+         */
+
+        <motion.div
+          initial={{
+            opacity: 0,
+            scale: 0.95
+          }}
+          animate={{
+            opacity: 1,
+            scale: 1
+          }}
+          className="text-center py-8 space-y-6 glass-panel p-6 sm:p-8 rounded-3xl border border-red-500/40"
+        >
+
+          <div className="w-16 h-16 rounded-full bg-red-500/20 border border-red-400 flex items-center justify-center mx-auto text-red-400 shadow-[0_0_20px_rgba(248,113,113,0.45)]">
+            <XCircle className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-2">
+
+            <span className="font-mono text-xs text-red-400 uppercase tracking-widest block">
+              Booking Request Failed
+            </span>
+
+            <h3 className="font-display text-2xl font-bold text-white">
+              We Couldn't Complete Your Request
+            </h3>
+
+            <p className="text-slate-300 text-xs sm:text-sm max-w-md mx-auto">
+              Your booking request was{' '}
+              <span className="text-red-300 font-semibold">
+                not submitted successfully
+              </span>
+              . No confirmation has been generated.
+              Please try again.
+            </p>
+
+          </div>
+
+          {/* Failure Status Box */}
+
+          <div className="max-w-md mx-auto bg-[#140b0d]/80 border border-red-500/20 rounded-2xl p-4 text-left">
+
+            <div className="flex items-start gap-2.5 text-xs text-red-300 font-mono">
+
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
+
+              <span>
+                {submitError ||
+                  'We could not transfer your booking request. Please try again.'}
+              </span>
+
+            </div>
+
+          </div>
+
+          {/* Failure Actions */}
+
+          <div className="pt-4 flex flex-wrap items-center justify-center gap-3">
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsSubmissionFailed(false);
+                setSubmitError(null);
+                setStep(3);
+              }}
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 via-sky-500 to-indigo-600 hover:from-cyan-400 hover:via-sky-400 hover:to-indigo-500 border border-cyan-300/30 text-white text-xs font-bold tracking-wide flex items-center gap-2 cursor-pointer transition-all shadow-lg shadow-cyan-500/20"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Try Again
+            </button>
+
+            <button
+              type="button"
+              onClick={resetForm}
+              className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-xs font-mono cursor-pointer transition-colors"
+            >
+              Start New Inquiry
+            </button>
+
+          </div>
+
+        </motion.div>
+
       ) : (
+
+        /*
+         * =====================================================
+         * FORM
+         * =====================================================
+         */
+
         <form
           onSubmit={handleSubmit}
           className="space-y-6"
@@ -928,6 +1145,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
               {/* Service */}
 
               <div className="space-y-1">
+
                 <label className="font-mono text-xs text-slate-300 uppercase block">
                   Select Service Category
                 </label>
@@ -939,6 +1157,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                   }
                   className="w-full glass-input px-4 py-3 rounded-xl text-sm text-white font-mono"
                 >
+
                   {SERVICES_LIST.map((s) => (
                     <option
                       key={s.id}
@@ -948,18 +1167,19 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                       {s.title} (From ₹{s.startingPrice})
                     </option>
                   ))}
+
                 </select>
+
               </div>
 
-              {/* =================================================
-                  STATE + DISTRICT
-                 ================================================= */}
+              {/* STATE + DISTRICT */}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
                 {/* State */}
 
                 <div className="space-y-1">
+
                   <label className="font-mono text-xs text-slate-300 uppercase block">
                     Select State
                   </label>
@@ -967,19 +1187,18 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                   <select
                     value={state}
                     onChange={(e) => {
+
                       const selectedState =
                         e.target.value as keyof typeof INDIA_LOCATIONS | '';
 
                       setState(selectedState);
 
-                      /*
-                       * Reset district whenever state changes.
-                       */
                       setDistrict('');
                     }}
                     className="w-full glass-input px-4 py-3 rounded-xl text-sm text-white font-mono"
                     required
                   >
+
                     <option
                       value=""
                       className="bg-[#0b0e17] text-slate-400"
@@ -998,12 +1217,15 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                         {stateName}
                       </option>
                     ))}
+
                   </select>
+
                 </div>
 
                 {/* District */}
 
                 <div className="space-y-1">
+
                   <label className="font-mono text-xs text-slate-300 uppercase block">
                     Select District
                   </label>
@@ -1014,13 +1236,13 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                       setDistrict(e.target.value)
                     }
                     disabled={!state}
-                    className={`w-full glass-input px-4 py-3 rounded-xl text-sm font-mono ${
-                      state
+                    className={`w-full glass-input px-4 py-3 rounded-xl text-sm font-mono ${state
                         ? 'text-white'
                         : 'text-slate-500 cursor-not-allowed opacity-60'
-                    }`}
+                      }`}
                     required
                   >
+
                     <option
                       value=""
                       className="bg-[#0b0e17] text-slate-400"
@@ -1042,18 +1264,21 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                           </option>
                         )
                       )}
+
                   </select>
+
                 </div>
 
               </div>
 
               {/* =================================================
-                  MANUAL SHOOT LOCATION
+                  REQUIRED SHOOT LOCATION
                  ================================================= */}
 
               <div className="space-y-1">
+
                 <label className="font-mono text-xs text-slate-300 uppercase block">
-                  Shoot City / Location
+                  Shoot City / Location *
                 </label>
 
                 <input
@@ -1070,15 +1295,19 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                 <p className="text-[10px] text-slate-500 font-mono">
                   Enter the exact city, area, venue, resort, studio or shoot location manually.
                 </p>
+
               </div>
 
-              {/* Date + Budget */}
+              {/* =================================================
+                  REQUIRED TARGET SHOOT DATE + BUDGET
+                 ================================================= */}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
                 <div className="space-y-1">
+
                   <label className="font-mono text-xs text-slate-300 uppercase block">
-                    Target Shoot Date
+                    Target Shoot Date *
                   </label>
 
                   <input
@@ -1087,12 +1316,15 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                     onChange={(e) =>
                       setShootDate(e.target.value)
                     }
+                    min={new Date().toISOString().split('T')[0]}
                     className="w-full glass-input px-4 py-3 rounded-xl text-sm text-white font-mono"
                     required
                   />
+
                 </div>
 
                 <div className="space-y-1">
+
                   <label className="font-mono text-xs text-slate-300 uppercase block">
                     Estimated Budget Range
                   </label>
@@ -1104,6 +1336,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                     }
                     className="w-full glass-input px-4 py-3 rounded-xl text-sm text-white font-mono"
                   >
+
                     <option
                       value="₹40,000 – ₹60,000"
                       className="bg-[#0b0e17] text-white"
@@ -1131,7 +1364,9 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                     >
                       ₹8,000 – ₹15,000 INR (Portrait Photography)
                     </option>
+
                   </select>
+
                 </div>
 
               </div>
@@ -1139,13 +1374,53 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
               <button
                 type="button"
                 onClick={() => {
+
+                  /*
+                   * Extra validation before moving to Step 2.
+                   */
+
+                  if (!state) {
+                    setSubmitError('Please select your state.');
+                    return;
+                  }
+
+                  if (!district) {
+                    setSubmitError('Please select your district.');
+                    return;
+                  }
+
+                  if (!city.trim()) {
+                    setSubmitError('Please enter your shoot location.');
+                    return;
+                  }
+
+                  if (!shootDate) {
+                    setSubmitError('Please select your target shoot date.');
+                    return;
+                  }
+
+                  setSubmitError(null);
+
                   playClickSound();
+
                   setStep(2);
                 }}
                 className="w-full py-3.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm tracking-wider uppercase shadow-lg shadow-cyan-500/25 transition-all cursor-pointer"
               >
                 Continue to Creative Brief
               </button>
+
+              {submitError && (
+                <div className="flex items-center gap-2 text-xs text-amber-400 font-mono bg-amber-500/5 border border-amber-500/20 rounded-xl px-4 py-3">
+
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+
+                  <span>
+                    {submitError}
+                  </span>
+
+                </div>
+              )}
 
             </motion.div>
           )}
@@ -1162,6 +1437,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
             >
 
               <div className="space-y-1">
+
                 <label className="font-mono text-xs text-slate-300 uppercase block">
                   Creative Vision & Mood Description
                 </label>
@@ -1176,6 +1452,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                   className="w-full glass-input p-4 rounded-xl text-sm text-white"
                   required
                 />
+
               </div>
 
               <div className="flex gap-3">
@@ -1191,7 +1468,18 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                 <button
                   type="button"
                   onClick={() => {
+
+                    if (!vision.trim()) {
+                      setSubmitError(
+                        'Please describe your creative vision.'
+                      );
+                      return;
+                    }
+
+                    setSubmitError(null);
+
                     playClickSound();
+
                     setStep(3);
                   }}
                   className="w-2/3 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm tracking-wider uppercase shadow-lg shadow-cyan-500/25 transition-all cursor-pointer"
@@ -1200,6 +1488,18 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                 </button>
 
               </div>
+
+              {submitError && (
+                <div className="flex items-center gap-2 text-xs text-amber-400 font-mono bg-amber-500/5 border border-amber-500/20 rounded-xl px-4 py-3">
+
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+
+                  <span>
+                    {submitError}
+                  </span>
+
+                </div>
+              )}
 
             </motion.div>
           )}
@@ -1215,9 +1515,14 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
               className="space-y-4"
             >
 
+              {/* =================================================
+                  REQUIRED FULL NAME + EMAIL
+                 ================================================= */}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
                 <div className="space-y-1">
+
                   <label className="font-mono text-xs text-slate-300 uppercase block">
                     Full Name *
                   </label>
@@ -1231,10 +1536,13 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                     placeholder="Rohan Patel"
                     className="w-full glass-input px-4 py-3 rounded-xl text-sm text-white"
                     required
+                    autoComplete="name"
                   />
+
                 </div>
 
                 <div className="space-y-1">
+
                   <label className="font-mono text-xs text-slate-300 uppercase block">
                     Email Address *
                   </label>
@@ -1248,16 +1556,23 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                     placeholder="example@gmail.com"
                     className="w-full glass-input px-4 py-3 rounded-xl text-sm text-white"
                     required
+                    autoComplete="email"
                   />
+
                 </div>
 
               </div>
 
+              {/* =================================================
+                  OPTIONAL COMPANY + REQUIRED PHONE
+                 ================================================= */}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
                 <div className="space-y-1">
+
                   <label className="font-mono text-xs text-slate-300 uppercase block">
-                    Location
+                    Location / Organization
                   </label>
 
                   <input
@@ -1266,26 +1581,60 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                     onChange={(e) =>
                       setCompany(e.target.value)
                     }
-                    placeholder="Shahada"
+                    placeholder="Optional"
                     className="w-full glass-input px-4 py-3 rounded-xl text-sm text-white"
                   />
+
                 </div>
 
                 <div className="space-y-1">
+
                   <label className="font-mono text-xs text-slate-300 uppercase block">
-                    Phone / WhatsApp
+                    Phone / WhatsApp *
                   </label>
 
                   <input
-                    type="text"
+                    type="tel"
                     value={phone}
                     onChange={(e) =>
                       setPhone(e.target.value)
                     }
                     placeholder="+91 9876543210"
                     className="w-full glass-input px-4 py-3 rounded-xl text-sm text-white"
+                    required
+                    autoComplete="tel"
                   />
+
                 </div>
+
+              </div>
+
+              {/* Required Fields Reminder */}
+
+              <div className="rounded-xl border border-cyan-500/15 bg-cyan-500/5 px-4 py-3">
+
+                <p className="text-[10px] sm:text-xs text-slate-400 font-mono leading-relaxed">
+                  Required before submission:{' '}
+                  <span className="text-cyan-300">
+                    Full Name
+                  </span>
+                  {' • '}
+                  <span className="text-cyan-300">
+                    Email
+                  </span>
+                  {' • '}
+                  <span className="text-cyan-300">
+                    Shoot Location
+                  </span>
+                  {' • '}
+                  <span className="text-cyan-300">
+                    Target Shoot Date
+                  </span>
+                  {' • '}
+                  <span className="text-cyan-300">
+                    Phone / WhatsApp
+                  </span>
+                </p>
 
               </div>
 
@@ -1302,32 +1651,52 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className={`w-2/3 py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 via-sky-500 to-indigo-600 text-white font-bold text-sm tracking-wider uppercase shadow-xl shadow-cyan-500/30 transition-all flex items-center justify-center gap-2 ${
-                    isSubmitting
+                  className={`w-2/3 py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 via-sky-500 to-indigo-600 text-white font-bold text-sm tracking-wider uppercase shadow-xl shadow-cyan-500/30 transition-all flex items-center justify-center gap-2 ${isSubmitting
                       ? 'opacity-80 cursor-wait'
                       : 'hover:scale-[1.02] active:scale-95 cursor-pointer'
-                  }`}
+                    }`}
                 >
+
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin text-cyan-200" />
-                      <span>Transmitting & Emailing...</span>
+
+                      <span>
+                        Transmitting & Emailing...
+                      </span>
                     </>
                   ) : (
                     <>
                       <Send className="w-4 h-4" />
-                      <span>Submit Shoot Booking</span>
+
+                      <span>
+                        Submit Shoot Booking
+                      </span>
                     </>
                   )}
+
                 </button>
 
               </div>
+
+              {submitError && (
+                <div className="flex items-center gap-2 text-xs text-amber-400 font-mono bg-amber-500/5 border border-amber-500/20 rounded-xl px-4 py-3">
+
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+
+                  <span>
+                    {submitError}
+                  </span>
+
+                </div>
+              )}
 
             </motion.div>
           )}
 
         </form>
       )}
+
     </div>
   );
 
@@ -1340,6 +1709,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
   if (isOpenModal) {
     return (
       <AnimatePresence>
+
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
 
           <motion.div
@@ -1389,6 +1759,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
           </motion.div>
 
         </div>
+
       </AnimatePresence>
     );
   }
@@ -1412,15 +1783,21 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
         <div className="text-center max-w-3xl mx-auto space-y-4 mb-16">
 
           <span className="font-mono text-xs uppercase tracking-widest text-cyan-400 px-3 py-1 rounded-full bg-cyan-950/40 border border-cyan-500/30 inline-flex items-center gap-1.5">
+
             <Calendar className="w-3.5 h-3.5" />
+
             Reserve Production Date
+
           </span>
 
           <h2 className="font-display text-3xl sm:text-5xl font-extrabold text-white">
+
             Book Your{' '}
+
             <span className="text-gradient-cyan">
               Production
             </span>
+
           </h2>
 
           <p className="text-slate-400 text-sm sm:text-base font-light">
