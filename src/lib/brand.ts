@@ -33,9 +33,9 @@ export const BRAND_IMAGES = {
 };
 
 export const ARTIST = {
-  name: "Dev Rathod",
-  role: "Founder · Lead Photographer & Director",
-  since: 2014,
+  name: "Utkarsh Patel",
+  role: "Photographer",
+  since: 2022,
   weddings: 240,
   films: 96,
   cities: 31,

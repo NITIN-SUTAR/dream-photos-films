@@ -170,10 +170,10 @@ export function BookingFlow({ today }: { today: string }) {
     if (details.name.trim().length < 2) next.name = "Please enter your full name.";
     if (!/^[+\d][\d\s-]{7,}$/.test(details.phone.trim())) next.phone = "Enter a reachable phone number.";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(details.email.trim())) next.email = "Enter a valid email address.";
-if (!details.state) next.state = "Choose your state.";
-if (!details.district) next.district = "Choose the district closest to the venue.";
-if (details.city.trim().length < 2) next.city = "Add the city or venue location.";
-if (isWedding && dates.length !== 3) next.city = next.city || "Select exactly 3 wedding dates.";
+    if (!details.state) next.state = "Choose your state.";
+    if (!details.district) next.district = "Choose the district closest to the venue.";
+    if (details.city.trim().length < 2) next.city = "Add the city or venue location.";
+    if (isWedding && dates.length !== 3) next.city = next.city || "Select exactly 3 wedding dates.";
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -220,7 +220,7 @@ if (isWedding && dates.length !== 3) next.city = next.city || "Select exactly 3 
         { "idempotency-key": idempotencyKey.current },
       );
       setCreated(result);
-idempotencyKey.current = `booking-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      idempotencyKey.current = `booking-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       reset();
       push({
         tone: "success",
@@ -432,11 +432,11 @@ idempotencyKey.current = `booking-${Date.now()}-${Math.random().toString(36).sli
                     <button
                       key={s.id}
                       type="button"
-onClick={() => {
-                         setServiceId(s.id);
-                         setPackageId("");
-                         if (s.name.toLowerCase().startsWith("wedding")) setMode("range");
-                       }}
+                      onClick={() => {
+                        setServiceId(s.id);
+                        setPackageId("");
+                        if (s.name.toLowerCase().startsWith("wedding")) setMode("range");
+                      }}
                       aria-pressed={serviceId === s.id}
                       className={cn(
                         "group rounded-[14px] border p-4 text-left transition-all duration-400",
@@ -765,9 +765,9 @@ onClick={() => {
                     error={errors.district}
                     disabled={!details.state}
                     options={(details.state === "Maharashtra"
-                      ? DISTRICTS.slice(0, 10)
+                      ? DISTRICTS.slice(0, 36)
                       : details.state === "Gujarat"
-                        ? DISTRICTS.slice(10)
+                        ? DISTRICTS.slice(36)
                         : []
                     ).map((d) => ({ value: d, label: d }))}
                     onChange={(e) => setDetails((d) => ({ ...d, district: e.target.value }))}
@@ -828,8 +828,8 @@ onClick={() => {
                     <Row label="Name" value={details.name || "—"} />
                     <Row label="Phone" value={details.phone || "—"} />
                     <Row label="Email" value={details.email || "—"} />
-<Row label="District" value={details.district || "—"} />
-<Row label="City" value={details.city || "—"} />
+                    <Row label="District" value={details.district || "—"} />
+                    <Row label="City" value={details.city || "—"} />
                     <Row label="Notes" value={details.notes || "—"} />
                   </ReviewBlock>
                   <div className="rounded-[14px] border border-accent/30 bg-accent/[0.06] p-5">
