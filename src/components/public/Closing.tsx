@@ -398,7 +398,7 @@ export function SiteFooter({ contact }: { contact: StudioContact }) {
           </p>
           <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted/70">
             Designed &amp; developed by{" "}
-            <span className="text-accent/80">Studio Frontend Team</span>
+            <span className="text-accent/80">Nitin Sutar</span>
           </p>
         </div>
       </div>

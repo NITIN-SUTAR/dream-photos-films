@@ -83,6 +83,13 @@ const OWNER_ENTITIES = new Set([
   "media",
 ]);
 
+export function resolveFilmAssetIds(body: Record<string, unknown>) {
+  return {
+    posterAssetId: typeof body.posterAssetId === "string" && isUuid(body.posterAssetId) ? body.posterAssetId : null,
+    videoAssetId: typeof body.videoAssetId === "string" && isUuid(body.videoAssetId) ? body.videoAssetId : null,
+  };
+}
+
 async function guard(entity: string): Promise<AuthUser> {
   return OWNER_ENTITIES.has(entity) ? requireOwner() : requireUser();
 }
@@ -490,6 +497,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       }
 
       case "films": {
+        const { posterAssetId, videoAssetId } = resolveFilmAssetIds(body);
         const [row] = await db
           .insert(films)
           .values({
@@ -501,6 +509,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
             posterAlt: str(body.posterAlt ?? body.title, "Alt text", 300),
             posterWidth: Number(body.posterWidth ?? 1500),
             posterHeight: Number(body.posterHeight ?? 844),
+            videoAssetId,
+            posterAssetId,
             duration: str(body.duration ?? "0:00", "Duration", 12),
             featured: body.featured === true,
             active: body.active !== false,
@@ -710,6 +720,14 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         if (body.duration !== undefined) patch.duration = str(body.duration, "Duration", 12);
         if (body.videoUrl !== undefined) patch.videoUrl = str(body.videoUrl, "Video", 600, 4);
         if (body.posterUrl !== undefined) patch.posterUrl = str(body.posterUrl, "Poster", 600, 4);
+        if (body.posterAssetId !== undefined) {
+          const next = resolveFilmAssetIds({ posterAssetId: body.posterAssetId }).posterAssetId;
+          patch.posterAssetId = next;
+        }
+        if (body.videoAssetId !== undefined) {
+          const next = resolveFilmAssetIds({ videoAssetId: body.videoAssetId }).videoAssetId;
+          patch.videoAssetId = next;
+        }
         if (body.featured !== undefined) patch.featured = !!body.featured;
         if (body.active !== undefined) patch.active = !!body.active;
         if (body.displayOrder !== undefined) patch.displayOrder = Number(body.displayOrder);

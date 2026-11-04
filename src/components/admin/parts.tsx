@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api, ApiFailure } from "@/lib/api";
+import { compressImageFile, compressVideoFile, formatBytes, makeStoragePath } from "@/lib/imageCompression";
 import { IconButton, LoadingSkeleton } from "@/components/ui/primitives";
 
 export function PageIntro({
@@ -321,18 +322,93 @@ export function UploadPanel({
     setFileName(file.name);
     setState("UPLOADING");
     setMessage("");
-    const form = new FormData();
-    form.append("file", file);
-    form.append("scope", scope);
-    form.append("kind", kind);
+
     try {
-      setState("PROCESSING");
-      const asset = await api.postForm<UploadedAsset>("/api/admin/media", form);
+      const usage = await api.get<{ usedBytes: number; budgetBytes: number | null; remainingBytes: number | null; percentUsed: number | null; warningThreshold: number; blockThreshold: number }>("/api/admin/media/usage");
+      if (usage.budgetBytes && usage.percentUsed !== null && usage.percentUsed >= usage.blockThreshold) {
+        throw new Error("The project storage quota is full. Delete unused media before uploading more.");
+      }
+      if (usage.budgetBytes && usage.percentUsed !== null && usage.percentUsed >= usage.warningThreshold) {
+        setMessage(`Storage is ${usage.percentUsed.toFixed(0)}% used. Consider deleting old media before continuing.`);
+      }
+
+      let processed = file;
+      let width: number | null = null;
+      let height: number | null = null;
+      let durationSeconds: number | null = null;
+
+      if (kind === "IMAGE") {
+        setState("PROCESSING");
+        setMessage("Optimizing image for upload…");
+        const result = await compressImageFile(file, {
+          maxDimension: 2200,
+          quality: 0.82,
+          onProgress: (_, msg) => setMessage(msg),
+        });
+        processed = result.file;
+        width = result.width;
+        height = result.height;
+      } else {
+        setState("PROCESSING");
+        setMessage("Optimizing video for upload…");
+        const result = await compressVideoFile(file, {
+          onProgress: (_, msg) => setMessage(msg),
+        });
+        processed = result.file;
+        width = result.width;
+        height = result.height;
+        durationSeconds = result.durationSeconds;
+      }
+
+      const storagePath = makeStoragePath(scope, processed.name, kind);
+      const signed = await api.post<{ signedUrl: string; bucket: string; path: string; usage?: { percentUsed: number | null; remainingBytes: number | null } }>(
+        "/api/admin/signed-upload",
+        {
+          scope,
+          kind,
+          path: storagePath,
+          expectedSize: processed.size,
+          mimeType: processed.type,
+        },
+      );
+      if (signed.usage && signed.usage.percentUsed !== null && signed.usage.percentUsed >= 75) {
+        setMessage(`Storage is ${(signed.usage.percentUsed ?? 0).toFixed(0)}% used. ${signed.usage.remainingBytes ? `${Math.round(signed.usage.remainingBytes / 1048576)} MB left` : "Limited remaining space"}.`);
+      }
+
+      if (!signed.signedUrl) throw new Error("The signed upload URL was not returned.");
+
+      setState("UPLOADING");
+      setMessage(`Uploading ${formatBytes(processed.size)}…`);
+      const uploadResponse = await fetch(signed.signedUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": processed.type,
+        },
+        body: processed,
+      });
+      if (!uploadResponse.ok) {
+        const text = await uploadResponse.text().catch(() => "");
+        throw new Error(text || "The direct storage upload failed.");
+      }
+
+      const asset = await api.post<UploadedAsset>("/api/admin/media/register", {
+        bucket: signed.bucket,
+        storagePath: signed.path,
+        mediaType: kind,
+        mimeType: processed.type,
+        fileSize: processed.size,
+        width,
+        height,
+        durationSeconds,
+        originalName: file.name,
+      });
+
       setState("READY");
+      setMessage("Stored and ready");
       onReady(asset);
     } catch (err) {
       setState("FAILED");
-      setMessage((err as ApiFailure).message);
+      setMessage((err as Error).message || (err as ApiFailure).message || "Upload failed.");
     }
   }
 

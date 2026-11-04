@@ -26,7 +26,9 @@ export default function AdminFilmsPage() {
     description: "",
     duration: "0:00",
     posterUrl: "",
+    posterAssetId: "",
     videoUrl: "",
+    videoAssetId: "",
   });
   const [busy, setBusy] = useState(false);
   const { push } = useToast();
@@ -230,7 +232,7 @@ export default function AdminFilmsPage() {
                 const done = await mutate(() => api.post("/api/admin/films", newFilm), "Film published");
                 if (done) {
                   setCreating(false);
-                  setNewFilm({ title: "", category: FILM_CATEGORIES[0], description: "", duration: "0:00", posterUrl: "", videoUrl: "" });
+                  setNewFilm({ title: "", category: FILM_CATEGORIES[0], description: "", duration: "0:00", posterUrl: "", posterAssetId: "", videoUrl: "", videoAssetId: "" });
                 }
               }}
             >
@@ -239,9 +241,9 @@ export default function AdminFilmsPage() {
           </>
         }
       >
-        <UploadPanel scope="films" kind="IMAGE" label="Drop a poster frame" hint="JPG or PNG · 1920×1080 recommended" onReady={(a) => setNewFilm((f) => ({ ...f, posterUrl: a.url }))} />
+        <UploadPanel scope="films" kind="IMAGE" label="Drop a poster frame" hint="JPG or PNG · 1920×1080 recommended" onReady={(a) => setNewFilm((f) => ({ ...f, posterUrl: a.url, posterAssetId: a.assetId }))} />
         <div className="mt-4">
-          <UploadPanel scope="films" kind="VIDEO" label="Drop the film file" hint="MP4 or WebM · up to 200MB preview cut" onReady={(a) => setNewFilm((f) => ({ ...f, videoUrl: a.url }))} />
+          <UploadPanel scope="films" kind="VIDEO" label="Drop the film file" hint="MP4 or WebM · up to 200MB preview cut" onReady={(a) => setNewFilm((f) => ({ ...f, videoUrl: a.url, videoAssetId: a.assetId }))} />
         </div>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <Input label="Title" value={newFilm.title} onChange={(e) => setNewFilm({ ...newFilm, title: e.target.value })} />

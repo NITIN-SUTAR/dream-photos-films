@@ -11,8 +11,10 @@ export const maxDuration = 60;
 
 async function authorise(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
-  const provided = req.headers.get("x-cron-secret");
-  if (secret && provided === secret) return "CRON";
+  const providedCron = req.headers.get("x-cron-secret");
+  const auth = req.headers.get("authorization");
+  const bearer = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
+  if (secret && (providedCron === secret || bearer === secret)) return "CRON";
   const user = await currentUser();
   if (user?.role === "OWNER") return "OWNER";
   throw new AppError("UNAUTHORIZED");

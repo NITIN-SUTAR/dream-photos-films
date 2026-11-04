@@ -1,10 +1,12 @@
-import { mkdir, writeFile, readFile, unlink, stat } from "node:fs/promises";
+import { mkdir, writeFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { db } from "@/db";
+import { requireDb } from "@/db";
 import { mediaAssets, mediaVariants } from "@/db/schema";
 import { AppError } from "./http";
+import { signMediaPath } from "./auth";
+import { getSupabaseAdmin, isBucketAllowed, type MediaBucket } from "./storage";
 
 export type Bucket = "public-media" | "private-gallery" | "private-documents";
 
@@ -115,6 +117,8 @@ export async function storeUpload(opts: {
   const storagePath = `${prefix}/${id}/${sanitizeName(file.name) || `file.${spec.ext}`}`;
   const absolute = path.join(ROOT, bucket, storagePath);
 
+  const db = requireDb();
+
   const [asset] = await db
     .insert(mediaAssets)
     .values({
@@ -177,32 +181,84 @@ export async function storeUpload(opts: {
   };
 }
 
+export function normalizeStoragePath(storagePath: string): string {
+  const clean = String(storagePath ?? "").replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!clean || clean.includes("..")) throw new AppError("ACCESS_DENIED");
+  return clean;
+}
+
+export async function readMediaFromSupabase(
+  supabaseClient: ReturnType<typeof getSupabaseAdmin>,
+  bucket: Bucket,
+  storagePath: string,
+): Promise<Buffer> {
+  const clean = normalizeStoragePath(storagePath);
+  if (!isBucketAllowed(bucket)) throw new AppError("INVALID_INPUT", "This storage bucket is not allowed.");
+
+  const { data, error } = await supabaseClient.storage.from(bucket).download(clean);
+  if (error || !data) throw new AppError("NOT_FOUND");
+  return Buffer.from(await data.arrayBuffer());
+}
+
 export async function readMedia(bucket: Bucket, storagePath: string): Promise<Buffer> {
-  const safe = path.normalize(storagePath).replace(/^(\.\.(\/|\\|$))+/, "");
-  const absolute = path.join(ROOT, bucket, safe);
-  if (!absolute.startsWith(path.join(ROOT, bucket))) throw new AppError("ACCESS_DENIED");
-  try {
-    return await readFile(absolute);
-  } catch {
-    throw new AppError("NOT_FOUND");
+  return readMediaFromSupabase(getSupabaseAdmin(), bucket, storagePath);
+}
+
+export async function deleteSupabaseStorageObjects(
+  supabaseClient: ReturnType<typeof getSupabaseAdmin>,
+  bucket: Bucket,
+  storagePaths: Array<string | null | undefined>,
+): Promise<void> {
+  const targets = [...new Set(
+    storagePaths
+      .filter((p): p is string => typeof p === "string" && p.trim().length > 0)
+      .map((path) => normalizeStoragePath(path)),
+  )];
+
+  if (!targets.length) return;
+
+  const { error } = await supabaseClient.storage.from(bucket).remove(targets);
+  if (error) {
+    throw new AppError("MEDIA_PROCESSING_FAILED", error.message || "The media could not be deleted from storage.");
   }
+}
+
+export async function cleanupFailedStorageRegistration(
+  supabaseClient: ReturnType<typeof getSupabaseAdmin>,
+  bucket: Bucket,
+  storagePath: string,
+): Promise<void> {
+  await deleteSupabaseStorageObjects(supabaseClient, bucket, [storagePath]);
 }
 
 /** Deletes storage objects only after the database no longer references them. */
 export async function deleteMediaAsset(assetId: string) {
+  const db = requireDb();
+
   const [asset] = await db.select().from(mediaAssets).where(eq(mediaAssets.id, assetId)).limit(1);
   if (!asset) return;
+
   const variants = await db.select().from(mediaVariants).where(eq(mediaVariants.assetId, assetId));
-  await db.delete(mediaAssets).where(eq(mediaAssets.id, assetId));
-  for (const p of [asset.storagePath, ...variants.map((v) => v.storagePath)]) {
-    try {
-      await unlink(path.join(ROOT, asset.bucket, p));
-    } catch {
-      /* object already gone — nothing to clean up */
-    }
+  const paths = [asset.storagePath, ...variants.map((v) => v.storagePath)];
+  const bucket = asset.bucket as Bucket;
+
+  if (!isBucketAllowed(bucket)) {
+    throw new AppError("INVALID_INPUT", "This storage bucket is not allowed.");
   }
+
+  const supabase = getSupabaseAdmin();
+  await deleteSupabaseStorageObjects(supabase, bucket, paths);
+
+  await db.delete(mediaAssets).where(eq(mediaAssets.id, assetId));
 }
 
 export function publicMediaUrl(bucket: Bucket, storagePath: string): string {
-  return `/api/media/${bucket}/${storagePath}`;
+  const clean = storagePath.replace(/\\/g, "/").replace(/^\/+/, "");
+  const encoded = clean
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  const base = `/api/media/${bucket}/${encoded}`;
+  if (bucket === "public-media") return base;
+  return `${base}?${signMediaPath(`${bucket}/${clean}`, 600)}`;
 }

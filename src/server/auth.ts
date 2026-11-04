@@ -3,13 +3,14 @@ import {
   randomBytes,
   scrypt as scryptCb,
   timingSafeEqual,
-  createHmac,
 } from "node:crypto";
 import { promisify } from "node:util";
 import { and, eq, gt } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles, sessions, auditLogs } from "@/db/schema";
 import { AppError, sha256 } from "./http";
+
+export { signMediaPath, verifyMediaSignature } from "./mediaSigning";
 
 const scrypt = promisify(scryptCb) as (
   password: string,
@@ -140,25 +141,3 @@ export function bookingTokenHash(token: string): string {
   return sha256(token);
 }
 
-/* ------------------------- signed media URLs --------------------------- */
-
-function mediaSecret(): string {
-  return process.env.MEDIA_SIGNING_SECRET ?? process.env.DATABASE_URL ?? "dpf-dev-secret";
-}
-
-export function signMediaPath(path: string, ttlSeconds = 300): string {
-  const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
-  const sig = createHmac("sha256", mediaSecret()).update(`${path}:${exp}`).digest("base64url");
-  return `exp=${exp}&sig=${sig}`;
-}
-
-export function verifyMediaSignature(path: string, exp: string, sig: string): boolean {
-  const expNum = Number(exp);
-  if (!expNum || expNum * 1000 < Date.now()) return false;
-  const expected = createHmac("sha256", mediaSecret())
-    .update(`${path}:${expNum}`)
-    .digest("base64url");
-  const a = Buffer.from(sig);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
